@@ -1,5 +1,8 @@
 import * as rlp from 'rlp'
 import Cache from './cache'
+import { LevelUp } from 'levelup'
+import Common from 'ethereumjs-common'
+
 import {
   headsKey,
   headHeaderKey,
@@ -16,6 +19,14 @@ import BN = require('bn.js')
 const level = require('level-mem')
 const Block = require('ethereumjs-block')
 
+type encoding = 'binary' | 'json'
+
+export interface DbOpts {
+  cache?: string
+  keyEncoding?: encoding
+  valueEncoding?: encoding
+}
+
 /**
  * Abstraction over a DB to facilitate storing/fetching blockchain-related
  * data, such as blocks and headers, indices, and the head block.
@@ -23,11 +34,11 @@ const Block = require('ethereumjs-block')
 export default class DBManager {
   _cache: { [k: string]: Cache<Buffer> }
 
-  _common: any
+  _common: Common
 
-  _db: any
+  _db: LevelUp
 
-  constructor(db: any, common: any) {
+  constructor(db: LevelUp, common: Common) {
     this._db = db
     this._common = common
     this._cache = {
@@ -42,21 +53,21 @@ export default class DBManager {
   /**
    * Fetches iterator heads from the db.
    */
-  getHeads(): Promise<any> {
+  async getHeads(): Promise<any> {
     return this.get(headsKey, { valueEncoding: 'json' })
   }
 
   /**
    * Fetches header of the head block.
    */
-  getHeadHeader(): Promise<any> {
+  async getHeadHeader(): Promise<any> {
     return this.get(headHeaderKey)
   }
 
   /**
    * Fetches head block.
    */
-  getHeadBlock(): Promise<any> {
+  async getHeadBlock(): Promise<any> {
     return this.get(headBlockKey)
   }
 
@@ -146,33 +157,37 @@ export default class DBManager {
    * it first tries to load from cache, and on cache miss will
    * try to put the fetched item on cache afterwards.
    */
-  async get(key: string | Buffer, opts: any = {}): Promise<any> {
-    const dbOpts = {
-      keyEncoding: opts.keyEncoding || 'binary',
-      valueEncoding: opts.valueEncoding || 'binary',
-    }
-
+  async get(
+    key: string | Buffer,
+    opts: DbOpts = {
+      keyEncoding: 'binary',
+      valueEncoding: 'binary',
+    },
+  ): Promise<any> {
+    let value
     if (opts.cache) {
       if (!this._cache[opts.cache]) {
         throw new Error(`Invalid cache: ${opts.cache}`)
       }
 
-      let value = this._cache[opts.cache].get(key)
-      if (!value) {
-        value = <Buffer>await this._db.get(key, dbOpts)
-        this._cache[opts.cache].set(key, value)
+      value = this._cache[opts.cache].get(key)
+      if (value) {
+        return value
       }
-
-      return value
     }
 
-    return this._db.get(key, dbOpts)
+    value = <Buffer>await this._db.get(key, opts)
+    if (value && opts.cache) {
+      this._cache[opts.cache].set(key, value)
+    }
+
+    return value
   }
 
   /**
    * Performs a batch operation on db.
    */
-  batch(ops: Array<any>): Promise<any> {
+  async batch(ops: Array<any>): Promise<any> {
     return this._db.batch(ops)
   }
 }

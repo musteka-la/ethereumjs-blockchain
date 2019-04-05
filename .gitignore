@@ -6,7 +6,8 @@
 .LSOverride
 
 # Icon must end with two \r
-Icon
+Icon
+
 
 # Thumbnails
 ._*
@@ -60,3 +61,9 @@ build/Release
 node_modules
 
 dist
+src/*.d.ts
+src/*.js.map
+src/*.js
+test/*.d.ts
+test/*.js.map
+test/*.js

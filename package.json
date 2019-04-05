@@ -37,6 +37,7 @@
   },
   "homepage": "https://github.com/ethereumjs/ethereumjs-blockchain#readme",
   "dependencies": {
+    "@types/levelup": "^3.1.0",
     "async": "^2.6.1",
     "ethashjs": "~0.0.7",
     "ethereumjs-block": "~2.2.0",

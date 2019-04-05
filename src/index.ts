@@ -3,6 +3,10 @@ import { BN, rlp } from 'ethereumjs-util'
 import Common from 'ethereumjs-common'
 import * as util from 'util'
 import DBManager from './dbManager'
+import { LevelUp } from 'levelup'
+import semaphore = require('semaphore')
+import Stoplight = require('flow-stoplight')
+
 import {
   bodyKey,
   bufBE8,
@@ -16,28 +20,45 @@ import {
 
 const Block = require('ethereumjs-block')
 const Ethash = require('ethashjs')
-const Stoplight = require('flow-stoplight')
 const level = require('level-mem')
-const semaphore = require('semaphore')
+
+export interface Options {
+  db?: LevelUp
+  blockDb?: LevelUp
+  common?: Common
+  chain?: string
+  hardfork?: string
+  validate?: boolean
+}
+
+export type Opts = Options | LevelUp
+function isDb(opts: Opts): opts is LevelUp {
+  return opts.constructor.name === 'LevelUP'
+}
 
 export default class Blockchain {
-  _common: any
+  _common: Common
   _genesis: any
   _headBlock: any
   _headHeader: any
-  _heads: any
+  _heads: { [key: string]: any }
   _initDone: boolean
   _initLock: any
-  _putSemaphore: any
+  _putSemaphore: semaphore.Semaphore
   _staleHeadBlock: any
   _staleHeads: any
 
-  db: any
+  db: LevelUp
   dbManager: DBManager
   ethash: any
   validate: boolean
 
-  constructor(opts: any = {}) {
+  constructor(opts: Opts = {}) {
+    // backwards compatibility with older constructor interfaces
+    if (isDb(opts)) {
+      opts = { db: opts }
+    }
+
     if (opts.common) {
       if (opts.chain) {
         throw new Error('Instantiation with both opts.common and opts.chain parameter not allowed!')
@@ -49,14 +70,8 @@ export default class Blockchain {
       this._common = new Common(chain, hardfork)
     }
 
-    // backwards compatibility with older constructor interfaces
-    if (opts.constructor.name === 'LevelUP') {
-      opts = { db: opts }
-    }
-    this.db = opts.db || opts.blockDb
-
     // defaults
-    this.db = this.db ? this.db : level()
+    this.db = opts.db ? opts.db : opts.blockDb || level()
     this.dbManager = new DBManager(this.db, this._common)
     this.validate = opts.validate === undefined ? true : opts.validate
     this.ethash = this.validate ? new Ethash(this.db) : null
@@ -67,7 +82,7 @@ export default class Blockchain {
     this._initDone = false
     this._putSemaphore = semaphore(1)
     this._initLock = new Stoplight()
-    this._init((err?: any) => {
+    this._init((err?: Error) => {
       if (err) {
         throw err
       }
@@ -159,6 +174,13 @@ export default class Blockchain {
    */
   putGenesis(genesis: any, cb: any): void {
     this.putBlock(genesis, cb, true)
+  }
+
+  /**
+   * Put an arbitrary block to be used as checkpoint
+   */
+  putCheckpoint(checkpoint: any, cb: Function): void {
+    this._putBlockOrHeader(checkpoint, cb, false, true)
   }
 
   /**
@@ -259,7 +281,7 @@ export default class Blockchain {
     })
   }
 
-  _putBlockOrHeader(item: any, cb: any, isGenesis?: boolean) {
+  _putBlockOrHeader(item: any, cb: any, isGenesis: boolean = false, isCheckpoint: boolean = false) {
     const self = this
     const isHeader = item instanceof Block.Header
     let block = isHeader ? new Block([item.raw, [], []], { common: item._common }) : item
@@ -318,6 +340,13 @@ export default class Blockchain {
         currentTd.block = new BN(0)
         return next()
       }
+
+      if (isCheckpoint) {
+        currentTd.header = new BN(block.header.difficulty)
+        currentTd.block = new BN(block.header.difficulty)
+        return next()
+      }
+
       async.parallel(
         [
           cb =>
@@ -337,7 +366,7 @@ export default class Blockchain {
 
     function getBlockTd(next: any) {
       // calculate the total difficulty of the new block
-      if (isGenesis) {
+      if (isGenesis || isCheckpoint) {
         return next()
       }
 
@@ -391,7 +420,7 @@ export default class Blockchain {
       }
 
       // if total difficulty is higher than current, add it to canonical chain
-      if (block.isGenesis() || td.gt(currentTd.header)) {
+      if (block.isGenesis() || td.gt(currentTd.header) || isCheckpoint) {
         self._headHeader = hash
         if (!isHeader) {
           self._headBlock = hash
@@ -404,7 +433,7 @@ export default class Blockchain {
         async.parallel(
           [
             cb => self._deleteStaleAssignments(number.addn(1), hash, dbOps, cb),
-            cb => self._rebuildCanonical(header, dbOps, cb),
+            cb => self._rebuildCanonical(header, dbOps, isCheckpoint, cb),
           ],
           next,
         )
@@ -586,7 +615,7 @@ export default class Blockchain {
   }
 
   // overwrite stale canonical number assignments
-  _rebuildCanonical(header: any, ops: any, cb: any) {
+  _rebuildCanonical(header: any, ops: any, isCheckpoint: boolean = false, cb: any) {
     const self = this
     const hash = header.hash()
     const number = new BN(header.number)
@@ -621,6 +650,19 @@ export default class Blockchain {
       return cb()
     }
 
+    function resetStaleHeads() {
+      // set stale heads to last previously valid canonical block
+      ;(self._staleHeads || []).forEach((name: string) => {
+        self._heads[name] = hash
+      })
+      delete self._staleHeads
+      // set stale headBlock to last previously valid canonical block
+      if (self._staleHeadBlock) {
+        self._headBlock = hash
+        delete self._staleHeadBlock
+      }
+    }
+
     self._numberToHash(number, (err?: any, staleHash?: Buffer | null) => {
       if (err) {
         staleHash = null
@@ -642,22 +684,18 @@ export default class Blockchain {
 
         self._getHeader(header.parentHash, number.subn(1), (err?: any, header?: any) => {
           if (err) {
+            // if this is a checkpoint, only walk back as far as possible
+            if (isCheckpoint) {
+              resetStaleHeads()
+              return cb()
+            }
             delete self._staleHeads
             return cb(err)
           }
-          self._rebuildCanonical(header, ops, cb)
+          self._rebuildCanonical(header, ops, isCheckpoint, cb)
         })
       } else {
-        // set stale heads to last previously valid canonical block
-        ;(self._staleHeads || []).forEach((name: string) => {
-          self._heads[name] = hash
-        })
-        delete self._staleHeads
-        // set stale headBlock to last previously valid canonical block
-        if (self._staleHeadBlock) {
-          self._headBlock = hash
-          delete self._staleHeadBlock
-        }
+        resetStaleHeads()
         cb()
       }
     })

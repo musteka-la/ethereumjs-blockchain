@@ -2,8 +2,7 @@
   "extends": "@ethereumjs/config-tsc",
   "compilerOptions": {
     "outDir": "./dist",
-    "types": ["node"],
-    "typeRoots": ["node_modules/@types"]
+    "typeRoots": ["definitions", "node_modules/@types"]
   },
   "include": ["src/**/*.ts"]
 }
