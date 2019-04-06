@@ -47,6 +47,7 @@ export default class Blockchain {
   _putSemaphore: semaphore.Semaphore
   _staleHeadBlock: any
   _staleHeads: any
+  _checkpoint: any
 
   db: LevelUp
   dbManager: DBManager
@@ -98,6 +99,7 @@ export default class Blockchain {
       rawHead: this._headHeader,
       heads: this._heads,
       genesis: this._genesis,
+      checkpoint: this._checkpoint
     }
   }
 
@@ -180,7 +182,18 @@ export default class Blockchain {
    * Put an arbitrary block to be used as checkpoint
    */
   putCheckpoint(checkpoint: any, cb: Function): void {
-    this._putBlockOrHeader(checkpoint, cb, false, true)
+    this._putBlockOrHeader(
+      checkpoint,
+      (err: Function) => {
+        if (err) {
+          return cb(err)
+        }
+        this._checkpoint = checkpoint.header.hash()
+        cb()
+      },
+      false,
+      true,
+    )
   }
 
   /**
@@ -838,7 +851,7 @@ export default class Blockchain {
 
   _iterator(name: string, func: any, cb: any) {
     const self = this
-    const blockHash = self._heads[name] || self._genesis
+    const blockHash = self._heads[name] || (this._checkpoint ? this._checkpoint : self._genesis)
     let blockNumber: any
     let lastBlock: any
 
