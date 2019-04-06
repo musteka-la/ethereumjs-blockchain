@@ -99,7 +99,7 @@ export default class Blockchain {
       rawHead: this._headHeader,
       heads: this._heads,
       genesis: this._genesis,
-      checkpoint: this._checkpoint
+      checkpoint: this._checkpoint,
     }
   }
 
