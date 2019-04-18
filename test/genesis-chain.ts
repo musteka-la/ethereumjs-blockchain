@@ -458,7 +458,7 @@ test('uncache db ops', (t: test.Test) => {
     })
 
     t.test('should perform _getTd correctly', (tt: test.Test) => {
-      blockchain._getTd(genesisBlock.hash(), new BN(0), (err: Error | undefined, td: BN) => {
+      blockchain.getTd(genesisBlock.hash(), new BN(0), (err: Error | undefined, td: BN) => {
         if (err) return t.end(err)
         t.equals(td.toBuffer().toString('hex'), genesis.header.difficulty.toString('hex'))
       })

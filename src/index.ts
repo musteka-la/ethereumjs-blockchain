@@ -363,12 +363,12 @@ export default class Blockchain {
       async.parallel(
         [
           cb =>
-            self._getTd(self._headHeader, (err?: any, td?: any) => {
+            self.getTd(self._headHeader, (err?: any, td?: any) => {
               currentTd.header = td
               cb(err)
             }),
           cb =>
-            self._getTd(self._headBlock, (err?: any, td?: any) => {
+            self.getTd(self._headBlock, (err?: any, td?: any) => {
               currentTd.block = td
               cb(err)
             }),
@@ -383,7 +383,7 @@ export default class Blockchain {
         return next()
       }
 
-      self._getTd(header.parentHash, number.subn(1), (err?: any, parentTd?: any) => {
+      self.getTd(header.parentHash, number.subn(1), (err?: any, parentTd?: any) => {
         if (err) {
           return next(err)
         }
@@ -968,7 +968,7 @@ export default class Blockchain {
   /**
    * Gets total difficulty for a block specified by hash and number
    */
-  _getTd(hash: any, number: any, cb?: any): void {
+  getTd(hash: any, number: any, cb?: any): void {
     this._lookupByHashNumber(
       hash,
       number,
