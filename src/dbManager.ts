@@ -1,3 +1,5 @@
+'use strict'
+
 import * as rlp from 'rlp'
 import Cache from './cache'
 import { LevelUp } from 'levelup'

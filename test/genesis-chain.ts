@@ -1,15 +1,15 @@
-import * as async from 'async'
+import async from 'async'
 import Common from 'ethereumjs-common'
 import { rlp, toBuffer } from 'ethereumjs-util'
-import * as test from 'tape'
-import BN = require('bn.js')
-import Blockchain, { Options } from '../src'
+import test from 'tape'
+import BN from 'bn.js'
+import { Blockchain, Options } from '../src'
 import { isConsecutive, createTestDB } from './utils'
 
-const level = require('level-mem')
-const Block = require('ethereumjs-block')
+import level from 'level-mem'
+import Block from 'ethereumjs-block'
 
-const testData = require('./testdata.json')
+import * as testData from './testdata.json'
 
 const blockchain = new Blockchain()
 let genesisBlock: any
@@ -61,13 +61,13 @@ test('alternate constructors', (t: test.Test) => {
     }
 
     const opts: Opts = { detailsDb: db, blockDb: db }
-    const blockchain = new class extends Blockchain {
+    const blockchain = new (class extends Blockchain {
       detailsDb: any
       blockDb: any
       constructor() {
         super(opts)
       }
-    }()
+    })()
 
     tt.equals(db, blockchain.db)
     tt.notOk(blockchain!.detailsDb)

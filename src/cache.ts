@@ -1,4 +1,6 @@
-import * as LRU from 'lru-cache'
+'use strict'
+
+import LRU from 'lru-cache'
 
 /**
  * Simple LRU Cache that allows for keys of type Buffer

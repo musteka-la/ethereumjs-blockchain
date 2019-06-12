@@ -1,7 +1,7 @@
-import * as async from 'async'
+import async from 'async'
 import { toBuffer } from 'ethereumjs-util'
-import * as test from 'tape'
-import Blockchain from '../src'
+import test from 'tape'
+import { Blockchain } from '../src'
 import { isConsecutive } from './utils'
 
 const Block = require('ethereumjs-block')

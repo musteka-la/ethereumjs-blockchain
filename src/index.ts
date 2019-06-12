@@ -1,11 +1,13 @@
+'use strict'
+
 import * as async from 'async'
-import { BN, rlp } from 'ethereumjs-util'
-import Common from 'ethereumjs-common'
 import * as util from 'util'
+import Common from 'ethereumjs-common'
 import DBManager from './dbManager'
+import semaphore from 'semaphore'
+import Stoplight from 'flow-stoplight'
+import { BN, rlp } from 'ethereumjs-util'
 import { LevelUp } from 'levelup'
-import semaphore = require('semaphore')
-import Stoplight = require('flow-stoplight')
 
 import {
   bodyKey,
@@ -18,9 +20,13 @@ import {
   tdKey,
 } from './util'
 
-const Block = require('ethereumjs-block')
-const Ethash = require('ethashjs')
-const level = require('level-mem')
+import Ethash from 'ethashjs'
+import level from 'level-mem'
+import Block from 'ethereumjs-block'
+
+// re export block - this module uses `instanceof Block`
+// which breaks across module boundaries
+export { Block }
 
 export interface Options {
   db?: LevelUp
@@ -29,14 +35,15 @@ export interface Options {
   chain?: string
   hardfork?: string
   validate?: boolean
+  BlockCodeRef?: Block
 }
 
 export type Opts = Options | LevelUp
-function isDb(opts: Opts): opts is LevelUp {
+function isDb(opts: any): opts is LevelUp {
   return opts.constructor.name === 'LevelUP'
 }
 
-export default class Blockchain {
+export class Blockchain {
   _common: Common
   _genesis: any
   _headBlock: any
@@ -53,6 +60,7 @@ export default class Blockchain {
   dbManager: DBManager
   ethash: any
   validate: boolean
+  BlockCodeRef?: typeof Block
 
   constructor(opts: Opts = {}) {
     // backwards compatibility with older constructor interfaces
@@ -181,7 +189,7 @@ export default class Blockchain {
   /**
    * Put an arbitrary block to be used as checkpoint
    */
-  putCheckpoint(checkpoint: any, cb: Function): void {
+  putCheckpoint(checkpoint: Block, cb: any): void {
     this._putBlockOrHeader(
       checkpoint,
       (err: Function) => {
@@ -258,7 +266,7 @@ export default class Blockchain {
   /**
    * Adds a block to the blockchain
    */
-  putBlock(block: object, cb: any, isGenesis?: boolean) {
+  putBlock(block: Block, cb: any, isGenesis?: boolean) {
     // make sure init has completed
     this._initLock.await(() => {
       // perform put with mutex dance
@@ -284,7 +292,7 @@ export default class Blockchain {
   /**
    * Adds a header to the blockchain
    */
-  putHeader(header: object, cb: any) {
+  putHeader(header: Block.Header, cb: any) {
     // make sure init has completed
     this._initLock.await(() => {
       // perform put with mutex dance
@@ -294,10 +302,17 @@ export default class Blockchain {
     })
   }
 
-  _putBlockOrHeader(item: any, cb: any, isGenesis: boolean = false, isCheckpoint: boolean = false) {
+  _putBlockOrHeader(
+    item: Block | Block.Header,
+    cb: any,
+    isGenesis: boolean = false,
+    isCheckpoint: boolean = false,
+  ) {
     const self = this
     const isHeader = item instanceof Block.Header
-    let block = isHeader ? new Block([item.raw, [], []], { common: item._common }) : item
+    let block: Block = isHeader
+      ? new Block([item.raw, [], []], { common: item._common })
+      : (item as Block)
     const header = block.header
     const hash = block.hash()
     const number = new BN(header.number)
@@ -322,7 +337,9 @@ export default class Blockchain {
         rebuildInfo,
         cb => self._batchDbOps(dbOps.concat(self._saveHeadOps()), cb),
       ],
-      cb,
+      err => {
+        return cb(err)
+      },
     )
 
     function verify(next: any) {
@@ -728,7 +745,7 @@ export default class Blockchain {
     })
   }
 
-  _delBlock(blockHash: Buffer | typeof Block, cb: any) {
+  _delBlock(blockHash: Buffer | Block, cb: any) {
     const self = this
     const dbOps: any[] = []
     let blockHeader = null
@@ -752,7 +769,7 @@ export default class Blockchain {
     )
 
     function getHeader(cb2: any) {
-      self._getHeader(blockHash, (err?: any, header?: any) => {
+      self._getHeader(blockHash as Buffer, (err?: any, header?: any) => {
         if (err) return cb2(err)
         blockHeader = header
         blockNumber = new BN(blockHeader.number)
@@ -772,7 +789,7 @@ export default class Blockchain {
     // delete the block, and if block is in the canonical chain, delete all
     // children as well
     function buildDBops(cb2: any) {
-      self._delChild(blockHash, blockNumber, inCanonical ? parentHash : null, dbOps, cb2)
+      self._delChild(blockHash as Buffer, blockNumber, inCanonical ? parentHash : null, dbOps, cb2)
     }
 
     // delete all number to hash mappings for deleted block number and above

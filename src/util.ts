@@ -1,4 +1,6 @@
-import BN = require('bn.js')
+'use strict'
+
+import BN from 'bn.js'
 
 // Geth compatible DB keys
 
