@@ -13,21 +13,21 @@ export default class Cache<V> {
   }
 
   set(key: string | Buffer, value: V): void {
-    if (key instanceof Buffer) {
+    if (Buffer.isBuffer(key)) {
       key = key.toString('hex')
     }
     this._cache.set(key, value)
   }
 
   get(key: string | Buffer): V | undefined {
-    if (key instanceof Buffer) {
+    if (Buffer.isBuffer(key)) {
       key = key.toString('hex')
     }
     return this._cache.get(key)
   }
 
   del(key: string | Buffer): void {
-    if (key instanceof Buffer) {
+    if (Buffer.isBuffer(key)) {
       key = key.toString('hex')
     }
     this._cache.del(key)

@@ -163,9 +163,12 @@ export default class DBManager {
     key: string | Buffer,
     opts: DbOpts = {
       keyEncoding: 'binary',
-      valueEncoding: 'binary',
+      valueEncoding: 'binary'
     },
   ): Promise<any> {
+    opts.keyEncoding = opts.keyEncoding || 'binary' 
+    opts.valueEncoding = opts.valueEncoding || 'binary' 
+
     let value
     if (opts.cache) {
       if (!this._cache[opts.cache]) {

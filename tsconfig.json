@@ -8,6 +8,7 @@
     },
     "typeRoots": ["definitions", "node_modules/@types"],
     "declaration": true,
+    "declarationMap": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
     "downlevelIteration": true
