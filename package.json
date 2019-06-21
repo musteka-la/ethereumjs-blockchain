@@ -43,7 +43,7 @@
     "async": "^2.6.1",
     "ethashjs": "~0.0.7",
     "ethereumjs-block": "~2.2.0",
-    "ethereumjs-common": "^1.2.0",
+    "ethereumjs-common": "^1.2.1",
     "ethereumjs-util": "^6.1.0",
     "flow-stoplight": "^1.0.0",
     "level-mem": "^3.0.1",

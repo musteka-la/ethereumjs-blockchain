@@ -504,7 +504,7 @@ export class Blockchain {
   /**
    * Looks up many blocks relative to blockId
    */
-  getBlocks(blockId: Buffer | number, maxBlocks: number, skip: number, reverse: boolean, cb: any) {
+  getBlocks(blockId: Buffer | BN | number, maxBlocks: number, skip: number, reverse: boolean, cb: any) {
     const self = this
     const blocks: any[] = []
     let i = -1
